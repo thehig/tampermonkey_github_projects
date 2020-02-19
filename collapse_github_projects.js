@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Github Projects Column Collapse
 // @namespace    https://github.com/thehig/tampermonkey_github_projects
-// @version      0.2
+// @version      0.3
 // @description  Collapse empty columns on Github Projects Kanban Boards
 // @author       David Higgins
 // @match        https://github.com/*/*/projects/*
@@ -14,7 +14,14 @@
 
   var DEBUG_ENABLED = false;
   var debug = DEBUG_ENABLED ? console.log : f => f;
-  console.log("Github Projects Column Collapse v0.2 - https://github.com/thehig/tampermonkey_github_projects");
+  console.log(
+    "Github Projects Column Collapse v0.3 - https://github.com/thehig/tampermonkey_github_projects"
+  );
+
+  function title(column) {
+    if (!DEBUG_ENABLED) return "Enable Debug";
+    return $(".js-project-column-name", column).text();
+  }
 
   /**
    * Check every 1000ms for ${selector}. When no results are found, call callback
@@ -90,19 +97,26 @@
       .appendTo("head");
   }
 
-  function title(column) {
-    return $(".js-project-column-name", column).text();
-  }
-
   /**
    * Monitor $(selector) for mouse up,down,move to add or remove the '.dragging' class to the $(selector) element
    */
   function detectDragAndDrop(selector) {
     var isDragging = false;
     var isMouseDown = false;
+
+    function handleMouseUp() {
+      // Note: This is used to catch .drop and .mouseup which can both occur in different scenarios
+      if (isDragging) {
+        debug("mousedrag ended");
+        $(selector).removeClass("dragging");
+      }
+      isMouseDown = false;
+      isDragging = false;
+    }
+  
     $(selector)
       .mousedown(function() {
-        // debug('mousedown');
+        // debug('mousedown'); // Very verbose
         isMouseDown = true;
         isDragging = false;
       })
@@ -113,15 +127,8 @@
         isDragging = true;
         $(selector).addClass("dragging");
       })
-      .on("drop", function() {
-        // Note: This was .mouseup() but it was missing events. The 'drop' event seems to work though
-        if (isDragging) {
-          debug("mousedrag ended");
-          $(selector).removeClass("dragging");
-        }
-        isMouseDown = false;
-        isDragging = false;
-      });
+      .mouseup(handleMouseUp)
+      .on("drop", handleMouseUp);
   }
 
   function createColumnObserver(column, callback) {
