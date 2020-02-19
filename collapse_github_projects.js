@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Github Projects Column Collapse
 // @namespace    https://github.com/thehig/tampermonkey_github_projects
-// @version      0.3
+// @version      0.4
 // @description  Collapse empty columns on Github Projects Kanban Boards
 // @author       David Higgins
 // @match        https://github.com/*/*/projects/*
@@ -15,7 +15,7 @@
   var DEBUG_ENABLED = false;
   var debug = DEBUG_ENABLED ? console.log : f => f;
   console.log(
-    "Github Projects Column Collapse v0.3 - https://github.com/thehig/tampermonkey_github_projects"
+    "Github Projects Column Collapse v0.4 - https://github.com/thehig/tampermonkey_github_projects"
   );
 
   function title(column) {
@@ -131,6 +131,8 @@
       .on("drop", handleMouseUp);
   }
 
+/* 
+  // Removed because it didn't detect changes in the visibility of its descendents
   function createColumnObserver(column, callback) {
     var cardsDiv = $(".js-project-column-cards", column)[0];
 
@@ -154,6 +156,7 @@
     observer.observe(cardsDiv, config);
     return observer;
   }
+ */
 
   function setEmptyCSSTag(column) {
     var visibleCards = $(
@@ -179,9 +182,10 @@
       debug("Add DOM watchers to", title(column));
       setEmptyCSSTag(column); // Run at least once per column
 
-      createColumnObserver(column, function() {
+      $(column).on('DOMSubtreeModified', function() {
         setEmptyCSSTag(column); // Then for every DOMSubtreeModified event trigger
-      });
+      })
+      // createColumnObserver(column, function() { });
     });
   }
 
