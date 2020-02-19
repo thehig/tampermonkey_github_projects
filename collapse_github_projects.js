@@ -1,8 +1,7 @@
-
 // ==UserScript==
 // @name         Github Projects Column Collapse
-// @namespace    http://tampermonkey.net/
-// @version      0.1
+// @namespace    https://github.com/thehig/tampermonkey_github_projects
+// @version      0.2
 // @description  Collapse empty columns on Github Projects Kanban Boards
 // @author       David Higgins
 // @match        https://github.com/*/*/projects/*
@@ -12,15 +11,20 @@
 
 (function($) {
   "use strict";
-  console.log("Github Projects Column Collapse v0.1");
+
+  var DEBUG_ENABLED = false;
+  var debug = DEBUG_ENABLED ? console.log : f => f;
+  console.log("Github Projects Column Collapse v0.2 - https://github.com/thehig/tampermonkey_github_projects");
 
   /**
    * Check every 1000ms for ${selector}. When no results are found, call callback
    */
   function waitForNoElement(selector, callback) {
     if ($(selector).length === 0) {
+      debug(selector, "not found");
       callback();
     } else {
+      debug(selector, "was found. trying again in 1000ms");
       setTimeout(function() {
         waitForNoElement(selector, callback);
       }, 1000);
@@ -28,27 +32,13 @@
   }
 
   /**
-   * Monitor the ${selector} for changes in .val(). Call callback *each time* val() changes.
-   *
-   * Will almost always call at least once (unless .val() returns null)
-   */
-  function monitorValue(selector, callback, previousValue = null) {
-    var currentValue = $(selector).val();
-    if (currentValue !== previousValue) {
-      callback();
-    }
-    setTimeout(function() {
-      monitorValue(selector, callback, currentValue);
-    }, 1000);
-  }
-
-  /**
    * Inject CSS into a <script> tag added to the <head>
    */
   function injectCss() {
+    debug("injecting CSS");
     var transitionDuration = 1; // seconds
     var collapsedWidth = 20; // px
-    var expandedWidth = 335; // px (Default from Github)
+    var expandedWidth = 355; // px (Default from Github)
     $("<style>")
       .prop("type", "text/css")
       .html(
@@ -100,6 +90,10 @@
       .appendTo("head");
   }
 
+  function title(column) {
+    return $(".js-project-column-name", column).text();
+  }
+
   /**
    * Monitor $(selector) for mouse up,down,move to add or remove the '.dragging' class to the $(selector) element
    */
@@ -108,17 +102,21 @@
     var isMouseDown = false;
     $(selector)
       .mousedown(function() {
+        // debug('mousedown');
         isMouseDown = true;
         isDragging = false;
       })
       .mousemove(function() {
         if (!isMouseDown || isDragging) return;
+        debug("mousedrag started");
 
         isDragging = true;
         $(selector).addClass("dragging");
       })
-      .mouseup(function() {
+      .on("drop", function() {
+        // Note: This was .mouseup() but it was missing events. The 'drop' event seems to work though
         if (isDragging) {
+          debug("mousedrag ended");
           $(selector).removeClass("dragging");
         }
         isMouseDown = false;
@@ -126,18 +124,57 @@
       });
   }
 
+  function createColumnObserver(column, callback) {
+    var cardsDiv = $(".js-project-column-cards", column)[0];
+
+    // Create an observer instance
+    var observer = new MutationObserver(function(mutations) {
+      if (mutations.length) {
+        debug("column observer trigger", title(column));
+        callback(column);
+      }
+    });
+
+    // Configuration of the observer:
+    var config = {
+      attributes: true,
+      childList: true,
+      characterData: true
+    };
+
+    // Pass in the target node, as well as the observer options
+    debug("Observing", title(column));
+    observer.observe(cardsDiv, config);
+    return observer;
+  }
+
+  function setEmptyCSSTag(column) {
+    var visibleCards = $(
+      ".js-project-column-cards article:not(.d-none)",
+      column
+    );
+    var hasNoCards = visibleCards.length === 0;
+    var hasEmptyTag = $(column).hasClass("empty");
+
+    if (hasEmptyTag === hasNoCards) return;
+
+    // Add or remove the '.empty' css class
+    $(column).toggleClass("empty", hasNoCards);
+    debug("setEmptyCSSTag", title(column), hasNoCards);
+  }
+
   /**
    * Iterate through the project columns and add/remove the ".empty" css class if they have no visible Articles
    */
-  function markEmptyColumns() {
+  function addDOMwatchers() {
     $(".project-column").each(function() {
-      var visibleCards = $(
-        ".js-project-column-cards article:not(.d-none)",
-        this
-      );
-      var hasNoCards = visibleCards.length === 0;
-      // Add or remove the '.empty' css class
-      $(this).toggleClass("empty", hasNoCards);
+      var column = this;
+      debug("Add DOM watchers to", title(column));
+      setEmptyCSSTag(column); // Run at least once per column
+
+      createColumnObserver(column, function() {
+        setEmptyCSSTag(column); // Then for every DOMSubtreeModified event trigger
+      });
     });
   }
 
@@ -145,13 +182,16 @@
    * Main entry point. Waits for page to be 'ready' then executes markEmptyColumns()
    */
   function main() {
+    debug("main");
     $(document).ready(() => {
+      debug("document ready");
       waitForNoElement(".project-column include-fragment", () => {
         // Elements are all loaded, no "include-fragment" in project columns
+        debug("fragments loaded");
 
         injectCss();
         detectDragAndDrop("body");
-        monitorValue("input.js-card-filter-input", markEmptyColumns);
+        addDOMwatchers();
       });
     });
   }
