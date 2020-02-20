@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Github Projects Column Collapse
 // @namespace    https://github.com/thehig/tampermonkey_github_projects
-// @version      0.6
+// @version      0.7
 // @description  Collapse empty columns on Github Projects Kanban Boards
 // @author       David Higgins
 // @match        https://github.com/*/*/projects/*
@@ -15,7 +15,7 @@
   var DEBUG_ENABLED = false;
   var debug = DEBUG_ENABLED ? console.log : f => f;
   console.log(
-    "Github Projects Column Collapse v0.6 - https://github.com/thehig/tampermonkey_github_projects"
+    "Github Projects Column Collapse v0.7 - https://github.com/thehig/tampermonkey_github_projects"
   );
 
   /**
@@ -49,15 +49,31 @@
     var transitionDuration = 1; // seconds
     var collapsedWidth = 20; // px
     var expandedWidth = 355; // px (Default from Github)
+    var scale = 0.75; // Scale from 0 to 1 of how large to make the contents of the window
+    var inverseScale = parseFloat(1 / scale).toFixed(2) * 100; // Making the width and height using the inverse scale (0 - 100)
+
     $("<style>")
       .prop("type", "text/css")
       .html(
         `
+/* Shrink the page (Zoom out) */
+.project-full-screen {
+  width: ${inverseScale}% !important;
+  height: ${inverseScale}% !important;
+  transform: scale(${scale});
+  transform-origin: 0 0;
+  
+  transition: all ${transitionDuration}s ease;
+  transition-property: width, height, transform;
+}
+
 /* Set initial width, add transition to all columns */
 .project-column {
   max-width: ${expandedWidth}px;
   min-width: ${expandedWidth}px;
-  transition: min-width ${transitionDuration}s, max-width ${transitionDuration}s;
+
+  transition: all ${transitionDuration}s ease;
+  transition-property: min-width, max-width;
 }
 
 .project-column .js-filtered-column-card-count {
