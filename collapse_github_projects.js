@@ -197,8 +197,7 @@
     $(document).ready(() => {
       // debug("document ready");
       waitForNoElement(".project-column include-fragment", () => {
-        // Elements are all loaded, no "include-fragment" in project columns
-        // debug("fragments loaded");
+        // debug("all fragments loaded");
 
         injectCss();
         detectDragAndDrop("body");
@@ -210,7 +209,6 @@
 
           // We don't want to trigger our events too often, so we debounce them
           var debouncedEvent = debounce(200, function() {
-            // console.log("Trigger", title(column));
             toggleCSS(column);
           });
 
